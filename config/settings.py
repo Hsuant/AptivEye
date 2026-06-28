@@ -29,6 +29,8 @@ class LLMSettings(BaseSettings):
     openai_base_url: str = Field(default="https://api.openai.com/v1", alias="OPENAI_BASE_URL")
     anthropic_api_key: SecretStr = Field(default=SecretStr(""), alias="ANTHROPIC_API_KEY")
     ollama_base_url: str = Field(default="http://localhost:11434", alias="OLLAMA_BASE_URL")
+    deepseek_api_key: SecretStr = Field(default=SecretStr(""), alias="DEEPSEEK_API_KEY")
+    deepseek_base_url: str = Field(default="https://api.deepseek.com/v1", alias="DEEPSEEK_BASE_URL")
 
     # Model tier assignments
     light_model: str = Field(default="gpt-4o-mini", alias="LIGHT_MODEL")
@@ -56,6 +58,17 @@ class LLMSettings(BaseSettings):
 
             warnings.warn(
                 "ANTHROPIC_API_KEY is not set — Claude models will be unavailable.", stacklevel=2
+            )
+        return v
+
+    @field_validator("deepseek_api_key", mode="before")
+    @classmethod
+    def _warn_missing_deepseek(cls, v: str) -> str:
+        if not v:
+            import warnings
+
+            warnings.warn(
+                "DEEPSEEK_API_KEY is not set — DeepSeek models will be unavailable.", stacklevel=2
             )
         return v
 

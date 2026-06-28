@@ -13,7 +13,7 @@ class LLMResponse:
 
     content: str
     model: str
-    provider: str  # "openai" | "anthropic" | "local"
+    provider: str  # "openai" | "anthropic" | "deepseek" | "local"
     input_tokens: int
     output_tokens: int
     finish_reason: str  # "stop" | "length" | "tool_call" | "error"

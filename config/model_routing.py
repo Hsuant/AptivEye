@@ -77,6 +77,36 @@ ROUTING_TABLE: dict[str, RoutingRule] = {
         description="Generate remediation recommendations",
     ),
 
+    # FOFA / Network search tasks
+    "fofa_query_planning": RoutingRule(
+        "fofa_query_planning", ModelTier.STANDARD, max_tokens=4000,
+        description="Convert natural language to FOFA query syntax",
+    ),
+    "fofa_reflection": RoutingRule(
+        "fofa_reflection", ModelTier.STANDARD, max_tokens=2000,
+        description="Analyze failed FOFA queries and generate corrections",
+    ),
+    "fofa_summarization": RoutingRule(
+        "fofa_summarization", ModelTier.STANDARD, max_tokens=4000,
+        description="Summarize FOFA asset results and recommend Nuclei args",
+    ),
+    "fofa_host_analysis": RoutingRule(
+        "fofa_host_analysis", ModelTier.STANDARD, max_tokens=4000,
+        description="Analyze FOFA host aggregation for risk assessment",
+    ),
+    "fofa_stat_analysis": RoutingRule(
+        "fofa_stat_analysis", ModelTier.STANDARD, max_tokens=4000,
+        description="Analyze FOFA statistical aggregation for trends",
+    ),
+    "fofa_report": RoutingRule(
+        "fofa_report", ModelTier.STANDARD, max_tokens=8000,
+        description="Generate FOFA asset exposure / vulnerability report",
+    ),
+    "fofa_vuln_report": RoutingRule(
+        "fofa_vuln_report", ModelTier.STANDARD, max_tokens=8000,
+        description="Generate comprehensive vulnerability assessment report",
+    ),
+
     # Heavy tasks — strongest models for deep reasoning
     "code_security_audit": RoutingRule(
         "code_security_audit", ModelTier.HEAVY, max_tokens=16000,

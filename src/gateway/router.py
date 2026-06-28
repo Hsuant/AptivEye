@@ -2,7 +2,7 @@
 
 Supports:
 - Model tier routing (light/standard/heavy)
-- Provider selection (OpenAI / Anthropic / Local)
+- Provider selection (OpenAI / Anthropic / DeepSeek / Local)
 - Cost tracking
 - Rate limiting
 - Sensitive-data-aware routing (auto → local)
@@ -17,6 +17,7 @@ from config.settings import get_settings
 from src.gateway.cost_tracker import CostTracker
 from src.gateway.providers import LLMResponse
 from src.gateway.providers.anthropic import AnthropicProvider
+from src.gateway.providers.deepseek import DeepSeekProvider
 from src.gateway.providers.local import LocalProvider
 from src.gateway.providers.openai import OpenAIProvider
 from src.gateway.rate_limiter import RateLimiter
@@ -48,6 +49,7 @@ class LLMRouter:
 
         self._openai: OpenAIProvider | None = None
         self._anthropic: AnthropicProvider | None = None
+        self._deepseek: DeepSeekProvider | None = None
         self._local: LocalProvider | None = None
 
         # Initialize available providers
@@ -56,6 +58,9 @@ class LLMRouter:
 
         if settings.anthropic_api_key.get_secret_value():
             self._anthropic = AnthropicProvider()
+
+        if settings.deepseek_api_key.get_secret_value():
+            self._deepseek = DeepSeekProvider()
 
         if settings.local_model_enabled:
             self._local = LocalProvider()
@@ -140,6 +145,8 @@ class LLMRouter:
             results["openai"] = await self._openai.health_check()
         if self._anthropic:
             results["anthropic"] = await self._anthropic.health_check()
+        if self._deepseek:
+            results["deepseek"] = await self._deepseek.health_check()
         if self._local:
             results["local"] = await self._local.health_check()
         return results
@@ -165,6 +172,10 @@ class LLMRouter:
             if self._openai is None:
                 raise ProviderAuthError("OPENAI_API_KEY is not set.")
             return self._openai
+        if "deepseek" in model_lower:
+            if self._deepseek is None:
+                raise ProviderAuthError("DEEPSEEK_API_KEY is not set.")
+            return self._deepseek
         # Default to OpenAI for unknown models
         if self._openai is not None:
             return self._openai

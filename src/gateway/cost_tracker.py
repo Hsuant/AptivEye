@@ -19,6 +19,8 @@ PRICING: dict[str, dict[str, float]] = {
     "claude-haiku-4-5-20251001":  {"input": 0.00100, "output": 0.00500},
     "claude-sonnet-4-6":          {"input": 0.00300, "output": 0.01500},
     "claude-opus-4-8":            {"input": 0.01500, "output": 0.07500},
+    "deepseek-chat":        {"input": 0.00027, "output": 0.00110},
+    "deepseek-reasoner":    {"input": 0.00055, "output": 0.00219},
     # Local models are free
 }
 
