@@ -99,3 +99,91 @@ worker_asset_analysis:
     - Note: CDN/WAF presence (Cloudflare, Akamai) — affects later scanning
 
     Output JSON with priority-ordered findings.
+
+
+# ---------------------------------------------------------------------------
+# FOFA AI Prompts — adapted from FofaMap v2.0 (by asaotomo / Hx0 Team)
+# ---------------------------------------------------------------------------
+fofa_supervisor_query_planning:
+  description: >
+    AI-powered FOFA query planning. Converts natural language intent into
+    structured FOFA query syntax with VIP-level-aware field selection.
+    The AI chooses from 5 actions: fofa_search, host_query, stat_query,
+    icon_query, bat_query.
+  actions:
+    fofa_search: "Asset list — obtain specific IP/URL lists"
+    host_query: "Single IP profile — detailed tags, ports, products"
+    stat_query: "Statistical aggregation — distribution, ranking, trends"
+    icon_query: "Icon reverse search — find assets sharing same favicon"
+    bat_query: "Batch file — read queries from local file"
+  field_permissions:
+    level_0: "ip, port, protocol, host, domain, title, server, os, header, banner, icp, jarm, country, region, city, asn, org, cert, tls"
+    level_11: "header_hash, banner_hash, banner_fid"
+    level_12: "product, product_category, cname, lastupdatetime"
+    level_13: "body, icon_hash, fid, product.version, cert.is_valid"
+    level_5_enterprise: "icon, structinfo (enterprise only)"
+  query_syntax:
+    and: "&&"
+    or: "||"
+    examples:
+      - 'app="Redis" && country="CN"'
+      - 'body="管理后台" || title="后台管理"'
+      - 'icon_hash="-123456789"'
+    geography_note: "Geographic fields MUST use pinyin (e.g., 'Shanghai', not '上海')"
+
+fofa_self_reflection:
+  description: >
+    When consecutive FOFA queries return 0 results, the AI analyzes failure
+    reasons and generates broader fallback queries.
+  strategies:
+    conservative: "Remove the most restrictive condition, keep core fingerprint"
+    fuzzy: "Replace host= with body= or title= to broaden scope"
+    broad: "Keep only core keywords (e.g., 'keyword' && country='CN')"
+    domain_guess: "Try .cn or .com instead of .edu.cn, or search Chinese keywords"
+
+fofa_asset_summarization:
+  description: >
+    AI analyzes discovered FOFA assets to identify technology stacks and
+    recommend Nuclei scanning parameters.
+  tech_stack_mapping:
+    java_spring_shiro: "-tags spring,shiro,java"
+    thinkphp_laravel: "-tags thinkphp,laravel"
+    weblogic_jboss: "-tags weblogic,jboss"
+    exchange_oa: "-tags exchange,oa"
+  parameter_tuning:
+    few_targets: "-bs 25 -rl 150  # aggressive rate"
+    many_targets: "-tags cves,misconfig  # broad scan"
+    specific_cve: "-id CVE-2021-44228  # targeted"
+
+fofa_host_risk_analysis:
+  description: >
+    AI generates risk assessment for a single IP/domain based on
+    FOFA host aggregation data.
+  sections:
+    - "Exposure analysis (open ports, especially high-risk ones)"
+    - "Risk assessment (known CVEs for identified products)"
+    - "Attack path inference (prioritized entry points)"
+    - "Comprehensive risk rating (high/medium/low)"
+
+fofa_stat_trend_analysis:
+  description: >
+    AI analyzes FOFA statistical aggregation to produce global
+    situational awareness.
+  sections:
+    - "Distribution patterns (geographic concentration, port usage)"
+    - "Anomaly detection (non-standard ports, unusual titles)"
+    - "Global impact assessment"
+    - "One-line conclusion"
+
+fofa_report_generation:
+  description: >
+    AI generates professional security assessment reports combining
+    FOFA asset data with Nuclei vulnerability scan results.
+  report_types:
+    asset_exposure: "Asset exposure surface report"
+    vulnerability: "Comprehensive vulnerability assessment report"
+  structure:
+    - "Asset overview (target count, port distribution, services)"
+    - "Vulnerability overview (count by severity)"
+    - "Detailed risk analysis"
+    - "Remediation recommendations"

@@ -175,4 +175,6 @@ class AgentRunner:
         return result.get("final_report", "No report generated.")
 
 
-__all__ = ["AgentRunner", "AgentState", "build_agent_graph"]
+from src.agent.fofa_planner import FofaQueryPlanner
+
+__all__ = ["AgentRunner", "AgentState", "build_agent_graph", "FofaQueryPlanner"]

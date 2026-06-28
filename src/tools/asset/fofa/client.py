@@ -82,6 +82,7 @@ class FofaClient:
         self._headers = {
             "User-Agent": "AptivEye/0.1 (FOFA Client)",
         }
+
         self._client_args = {
             "http2": True,
             "verify": False,
