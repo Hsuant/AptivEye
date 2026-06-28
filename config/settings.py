@@ -28,6 +28,7 @@ class LLMSettings(BaseSettings):
     openai_api_key: SecretStr = Field(default=SecretStr(""), alias="OPENAI_API_KEY")
     openai_base_url: str = Field(default="https://api.openai.com/v1", alias="OPENAI_BASE_URL")
     anthropic_api_key: SecretStr = Field(default=SecretStr(""), alias="ANTHROPIC_API_KEY")
+    anthropic_base_url: str = Field(default="https://api.anthropic.com", alias="ANTHROPIC_BASE_URL")
     ollama_base_url: str = Field(default="http://localhost:11434", alias="OLLAMA_BASE_URL")
     deepseek_api_key: SecretStr = Field(default=SecretStr(""), alias="DEEPSEEK_API_KEY")
     deepseek_base_url: str = Field(default="https://api.deepseek.com/v1", alias="DEEPSEEK_BASE_URL")

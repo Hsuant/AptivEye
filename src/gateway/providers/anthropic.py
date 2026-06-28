@@ -19,6 +19,7 @@ class AnthropicProvider(BaseProvider):
     def __init__(self) -> None:
         settings = get_settings().llm
         self._api_key = settings.anthropic_api_key.get_secret_value()
+        self._base_url = settings.anthropic_base_url or None
         self._healthy: bool | None = None
 
     @property
@@ -41,6 +42,7 @@ class AnthropicProvider(BaseProvider):
         llm = ChatAnthropic(
             model=model,
             api_key=self._api_key,
+            base_url=self._base_url,
             max_tokens=max_tokens,
             temperature=temperature,
         )
