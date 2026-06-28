@@ -1,0 +1,47 @@
+Metadata-Version: 2.4
+Name: aptiveye
+Version: 0.1.0
+Summary: AI-powered Network Security Agent — autonomous asset discovery, vulnerability scanning, CVE matching, code audit, and remediation reporting.
+Author: AptivEye Team
+License: MIT
+Keywords: security,agent,ai,vulnerability,pentest,langgraph
+Classifier: Development Status :: 2 - Pre-Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Information Technology
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Security
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: langchain>=0.3.0
+Requires-Dist: langgraph>=0.2.0
+Requires-Dist: langchain-openai>=0.2.0
+Requires-Dist: langchain-anthropic>=0.3.0
+Requires-Dist: langchain-community>=0.3.0
+Requires-Dist: mcp>=1.0.0
+Requires-Dist: pydantic>=2.0
+Requires-Dist: pydantic-settings>=2.0
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: chromadb>=0.5.0
+Requires-Dist: typer>=0.12.0
+Requires-Dist: rich>=13.0.0
+Requires-Dist: prompt-toolkit>=3.0.0
+Requires-Dist: loguru>=0.7.0
+Requires-Dist: opentelemetry-api>=1.20.0
+Requires-Dist: opentelemetry-sdk>=1.20.0
+Requires-Dist: docker>=7.0.0
+Requires-Dist: httpx>=0.27.0
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.24.0; extra == "dev"
+Requires-Dist: pytest-cov>=5.0; extra == "dev"
+Requires-Dist: ruff>=0.5.0; extra == "dev"
+Requires-Dist: mypy>=1.10; extra == "dev"
+Provides-Extra: local-llm
+Requires-Dist: ollama>=0.4.0; extra == "local-llm"
+Provides-Extra: production
+Requires-Dist: qdrant-client>=1.9.0; extra == "production"
+Provides-Extra: all
+Requires-Dist: aptiveye[dev,local-llm,production]; extra == "all"

@@ -1,0 +1,2 @@
+[console_scripts]
+aptiveye = src.cli:app
