@@ -13,7 +13,7 @@ Capabilities:
 
 Usage (from agent nodes)::
 
-    from src.agent.fofa_planner import FofaQueryPlanner
+    from src.agent.planner import FofaQueryPlanner
 
     planner = FofaQueryPlanner(llm_router)
     plan = await planner.plan_query(
@@ -144,7 +144,7 @@ class FofaQueryPlanner:
     Usage::
 
         from src.gateway.router import LLMRouter
-        from src.agent.fofa_planner import FofaQueryPlanner
+        from src.agent.planner import FofaQueryPlanner
 
         llm = LLMRouter()
         planner = FofaQueryPlanner(llm)

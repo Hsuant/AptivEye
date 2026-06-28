@@ -12,6 +12,7 @@ from __future__ import annotations
 from langgraph.graph import END, StateGraph
 
 from src.agent.fallback import fallback_node
+from src.agent.planner import Planner
 from src.agent.router import (
     route_after_supervisor,
     route_after_worker,
@@ -38,6 +39,8 @@ def build_agent_graph(
     sanitizer: OutputSanitizer,
     loop_detector: LoopDetector,
     audit: AuditLogger,
+    *,
+    planner: Planner | None = None,
 ) -> StateGraph:
     """Build and return a compiled LangGraph StateGraph for the agent.
 
@@ -58,10 +61,15 @@ def build_agent_graph(
         sanitizer: Tool output sanitizer.
         loop_detector: Infinite loop detection.
         audit: Audit logger.
+        planner: Pre-created Planner instance. Created on-demand if omitted.
 
     Returns:
         A compiled LangGraph StateGraph ready for invocation.
     """
+    # Create Planner if not provided (in-graph use only needs plan/aggregate)
+    if planner is None:
+        planner = Planner(llm)
+
     # Create the graph with our state schema
     graph = StateGraph(AgentState)
 
@@ -69,7 +77,7 @@ def build_agent_graph(
     # We use closures to inject dependencies into nodes
 
     async def _supervisor(state: AgentState) -> dict:
-        return await supervisor_node(state, llm, registry)
+        return await supervisor_node(state, llm, registry, planner=planner)
 
     async def _worker(state: AgentState) -> dict:
         return await worker_node(
@@ -79,7 +87,7 @@ def build_agent_graph(
     async def _aggregate(state: AgentState) -> dict:
         # The supervisor handles aggregation when status == "aggregating"
         state["status"] = "aggregating"
-        return await supervisor_node(state, llm, registry)
+        return await supervisor_node(state, llm, registry, planner=planner)
 
     async def _fallback(state: AgentState) -> dict:
         return await fallback_node(state)

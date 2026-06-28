@@ -21,8 +21,10 @@ from src.security.audit import AuditEventType, AuditLogger
 from src.security.loop_detector import LoopDetector
 from src.security.policy_engine import SecurityPolicyEngine
 from src.security.sanitizer import OutputSanitizer
+from src.security.scope import AuthorizationScope
 from src.tools.registry import ToolRegistry
 from src.utils.logger import get_logger
+from src.utils.parsing import parse_json_response
 
 logger = get_logger(__name__)
 
@@ -57,53 +59,70 @@ When you have completed the task, output a JSON summary:
 """
 
 
-async def worker_node(
-    state: AgentState,
+async def run_react_loop(
+    sub_task: dict[str, Any],
+    *,
     llm: LLMRouter,
     registry: ToolRegistry,
     policy_engine: SecurityPolicyEngine,
     sanitizer: OutputSanitizer,
     loop_detector: LoopDetector,
     audit: AuditLogger,
+    scope: AuthorizationScope | None = None,
+    max_iterations: int = 10,
 ) -> dict[str, Any]:
-    """Worker LangGraph node — executes a single sub-task via ReAct loop.
+    """Execute a single sub-task using the ReAct (Reasoning + Acting) pattern.
 
-    Returns updated state fields after completing (or failing) the sub-task.
+    This is the extracted core of ``worker_node``, reusable by both the
+    LangGraph graph and the standalone ``Planner``.
+
+    Args:
+        sub_task: Dict with keys ``id``, ``title``, ``description``, ``tool_category``.
+        llm: LLM router for model calls.
+        registry: Tool registry for discovery and invocation.
+        policy_engine: Security policy validation.
+        sanitizer: Tool output sanitizer.
+        loop_detector: Infinite loop detection.
+        audit: Audit logger.
+        scope: Authorization boundaries (optional).
+        max_iterations: Maximum ReAct loop iterations.
+
+    Returns:
+        Dict with keys:
+        - ``status``: 'completed' | 'partial' | 'failed'
+        - ``findings``: list of finding strings
+        - ``tools_used``: list of tool names called
+        - ``summary``: final summary text
+        - ``iterations``: number of iterations consumed
     """
-    plan = state.get("plan", [])
-    current_index = state.get("current_task_index", 0)
-
-    if current_index >= len(plan):
-        logger.error("Worker called with invalid task index {} (plan has {})", current_index, len(plan))
-        return {"status": "error", "error_count": state.get("error_count", 0) + 1}
-
-    sub_task = plan[current_index]
-    task_id = sub_task.get("id", f"task_{current_index}")
+    task_id = sub_task.get("id", "unknown")
     task_title = sub_task.get("title", "Unknown Task")
     task_desc = sub_task.get("description", "")
-    scope = state.get("scope")
+    tool_category = sub_task.get("tool_category")
 
-    logger.info("Worker starting task [{}/{}]: {}", current_index + 1, len(plan), task_title)
+    logger.info("ReAct loop starting for task '{}': {}", task_id, task_title)
 
     # Get tool definitions for the LLM
-    tool_category = sub_task.get("tool_category")
     tools_for_llm = registry.get_tool_definitions_for_llm(category=tool_category)
 
-    # Build messages for the worker
+    # Build initial messages
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": WORKER_SYSTEM_PROMPT},
-        {"role": "user", "content": f"## Task: {task_title}\n\n{task_desc}\n\nExecute this task step by step. Call tools as needed. Report your findings when done."},
+        {
+            "role": "user",
+            "content": f"## Task: {task_title}\n\n{task_desc}\n\nExecute this task step by step. Call tools as needed. Report your findings when done.",
+        },
     ]
 
-    max_iterations = 10
     tools_used: list[str] = []
     findings: list[str] = []
     final_summary = ""
+    worker_reported_status: str | None = None  # parsed from worker's JSON
+    iteration = 0
 
     # --- ReAct Loop ---
     for iteration in range(max_iterations):
-        # Check for loops
-        logger.debug("Worker iteration {}/{} for task '{}'", iteration + 1, max_iterations, task_id)
+        logger.debug("ReAct iteration {}/{} for task '{}'", iteration + 1, max_iterations, task_id)
 
         # Call LLM
         try:
@@ -114,7 +133,7 @@ async def worker_node(
                 tools=tools_for_llm if tools_for_llm else None,
             )
         except Exception as exc:
-            logger.error("LLM call failed in worker: {}", exc)
+            logger.error("LLM call failed in ReAct loop: {}", exc)
             audit.log_error("worker_llm_error", str(exc), {"task_id": task_id, "iteration": iteration})
             continue
 
@@ -133,13 +152,12 @@ async def worker_node(
                     except json.JSONDecodeError:
                         tool_args = {}
 
-                logger.info("Worker wants to call: {} with args: {}", tool_name, tool_args)
+                logger.info("ReAct wants to call: {} with args: {}", tool_name, tool_args)
 
-                # --- Security checks ---
-                # Check for loops
+                # --- Security: Loop detection ---
                 loop_result = loop_detector.check(tool_name, tool_args)
                 if loop_result.is_looping:
-                    logger.warning("Loop detected in worker: {}", loop_result.message)
+                    logger.warning("Loop detected in ReAct: {}", loop_result.message)
                     audit.log(AuditEventType.LOOP_DETECTED, detail={
                         "task_id": task_id,
                         "tool_name": tool_name,
@@ -152,7 +170,7 @@ async def worker_node(
                     })
                     continue
 
-                # Policy engine validation
+                # --- Security: Policy engine validation ---
                 if scope:
                     validation = policy_engine.validate(tool_name, tool_args, scope)
                     audit.log_policy_decision(
@@ -211,19 +229,20 @@ async def worker_node(
 
             # Try to parse completion JSON
             try:
-                parsed = _parse_json_response(content)
+                parsed = parse_json_response(content)
                 if parsed.get("status"):
+                    worker_reported_status = parsed["status"]
                     findings = parsed.get("findings", [])
                     final_summary = parsed.get("summary", content)
-                    logger.info("Worker completed task '{}': status={}, findings={}", task_id, parsed["status"], len(findings))
+                    logger.info("ReAct completed task '{}': status={}, findings={}", task_id, worker_reported_status, len(findings))
                     break
             except Exception:
                 pass
 
-            # If no JSON but the message looks like a final answer, treat it as completion
+            # If no JSON but the message looks like a final answer, treat as completion
             if _looks_like_completion(content, iteration, max_iterations):
                 final_summary = content
-                logger.info("Worker completed task '{}' with text summary", task_id)
+                logger.info("ReAct completed task '{}' with text summary", task_id)
                 break
 
             # Otherwise, prompt the worker to take action
@@ -233,20 +252,77 @@ async def worker_node(
             })
     else:
         # Max iterations reached
-        logger.warning("Worker reached max iterations ({}) for task '{}'", max_iterations, task_id)
+        logger.warning("ReAct reached max iterations ({}) for task '{}'", max_iterations, task_id)
         final_summary = f"Task reached maximum iterations ({max_iterations}) without explicit completion."
 
-    # --- Store results ---
-    worker_results = dict(state.get("worker_results", {}))
-    worker_results[task_id] = {
-        "title": task_title,
-        "status": "completed" if findings or final_summary else "incomplete",
+    # Determine status — prefer the worker's own reported status if parsed,
+    # otherwise use heuristics based on whether we have findings/summary
+    if worker_reported_status:
+        status = worker_reported_status
+    elif findings or final_summary:
+        status = "completed"
+    else:
+        status = "incomplete"
+
+    return {
+        "status": status,
         "findings": findings,
         "tools_used": list(set(tools_used)),
         "summary": final_summary,
+        "iterations": iteration + 1,
     }
 
-    iteration_count = state.get("iteration_count", 0) + iteration + 1
+
+async def worker_node(
+    state: AgentState,
+    llm: LLMRouter,
+    registry: ToolRegistry,
+    policy_engine: SecurityPolicyEngine,
+    sanitizer: OutputSanitizer,
+    loop_detector: LoopDetector,
+    audit: AuditLogger,
+) -> dict[str, Any]:
+    """Worker LangGraph node — thin wrapper around ``run_react_loop``.
+
+    Extracts the current sub-task from state, calls the ReAct loop, and
+    updates state with the results.
+    """
+    plan = state.get("plan", [])
+    current_index = state.get("current_task_index", 0)
+
+    if current_index >= len(plan):
+        logger.error("Worker called with invalid task index {} (plan has {})", current_index, len(plan))
+        return {"status": "error", "error_count": state.get("error_count", 0) + 1}
+
+    sub_task = plan[current_index]
+    scope = state.get("scope")
+
+    logger.info("Worker starting task [{}/{}]: {}", current_index + 1, len(plan), sub_task.get("title"))
+
+    result = await run_react_loop(
+        sub_task=sub_task,
+        llm=llm,
+        registry=registry,
+        policy_engine=policy_engine,
+        sanitizer=sanitizer,
+        loop_detector=loop_detector,
+        audit=audit,
+        scope=scope,
+        max_iterations=10,
+    )
+
+    # Store results in state format
+    task_id = sub_task.get("id", f"task_{current_index}")
+    worker_results = dict(state.get("worker_results", {}))
+    worker_results[task_id] = {
+        "title": sub_task.get("title", "Unknown Task"),
+        "status": result["status"],
+        "findings": result["findings"],
+        "tools_used": result["tools_used"],
+        "summary": result["summary"],
+    }
+
+    iteration_count = state.get("iteration_count", 0) + result.get("iterations", 0)
 
     return {
         "worker_results": worker_results,
@@ -254,31 +330,6 @@ async def worker_node(
         "error_count": 0,
         "iteration_count": iteration_count,
     }
-
-
-def _parse_json_response(content: str) -> dict[str, Any]:
-    """Parse JSON from LLM response."""
-    try:
-        return json.loads(content)
-    except json.JSONDecodeError:
-        pass
-
-    import re
-    match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", content)
-    if match:
-        try:
-            return json.loads(match.group(1))
-        except json.JSONDecodeError:
-            pass
-
-    match = re.search(r"\{[\s\S]*\}", content)
-    if match:
-        try:
-            return json.loads(match.group(0))
-        except json.JSONDecodeError:
-            pass
-
-    return {}
 
 
 def _looks_like_completion(content: str, iteration: int, max_iterations: int) -> bool:
